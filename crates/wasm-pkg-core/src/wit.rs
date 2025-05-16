@@ -162,6 +162,7 @@ pub fn get_packages(
 }
 
 /// Builds a list of resolved dependencies loaded from the component or path containing the WIT.
+///
 /// This will configure the resolver, override any dependencies from configuration and resolve the
 /// dependency map. This map can then be used in various other functions for fetching the
 /// dependencies and/or building a final resolved package.
@@ -171,28 +172,79 @@ pub async fn resolve_dependencies(
     lock_file: Option<&LockFile>,
     client: CachingClient<FileCache>,
 ) -> Result<DependencyResolutionMap> {
-    let mut resolver = DependencyResolver::new_with_client(client, lock_file)?;
     // add deps from config first in case they're local deps and then add deps from the directory
     if let Some(overrides) = config.overrides.as_ref() {
         for (pkg, ovride) in overrides.iter() {
             let pkg: PackageRef = pkg.parse().context("Unable to parse as a package ref")?;
-            let dep = match (ovride.path.as_ref(), ovride.version.as_ref()) {
-                (Some(path), None) => {
+            if let (None, Some(mapping), version) = (
+                ovride.path.as_ref(),
+                ovride.registry.as_ref(),
+                ovride.version.as_ref(),
+            ) {
+                // Handle registry mappings by ensuring the client has the override on the fly
+                client
+                    .client()
+                    .context("failed to extract client")?
+                    .ensure_registry_mapping_override(mapping)
+                    .await
+                    .context("failed to add dynamic registry mapping override")?;
+
+                // TODO: need to do this??
+
+                //     let registry_pkg = RegistryPackage {
+                //         name: pkg.into(),
+                //         version: version.cloned().unwrap_or_else(|| VersionReq::STAR),
+                //         registry: Some(match mapping {
+                //             wasm_pkg_client::RegistryMapping::Registry(r) => r.to_string(),
+                //             wasm_pkg_client::RegistryMapping::Custom(custom_config) => {
+                //                 custom_config.registry.to_string()
+                //             }
+                //         }),
+                //     };
+
+                //     let dep = Dependency::Package(registry_pkg);
+                //     resolver
+                //         .add_dependency(&registry_pkg, &dep)
+                //         .await
+                //         .context("Unable to add dependency")?;
+                // };
+            }
+        }
+    }
+
+    let mut resolver = DependencyResolver::new_with_client(client, lock_file)?;
+
+    // add deps from config first in case they're local deps and then add deps from the directory
+    if let Some(overrides) = config.overrides.as_ref() {
+        for (pkg, ovride) in overrides.iter() {
+            let pkg: PackageRef = pkg.parse().context("Unable to parse as a package ref")?;
+            let dep = match (
+                ovride.path.as_ref(),
+                ovride.version.as_ref(),
+                ovride.registry.as_ref(),
+            ) {
+                // Handle un-versioned local mappings
+                (Some(path), None, None) => {
                     let path = tokio::fs::canonicalize(path).await?;
                     Dependency::Local(path)
                 }
-                (Some(path), Some(_)) => {
+                // Handle versioned local mappings
+                (Some(path), Some(_), None) => {
                     tracing::warn!("Ignoring version override for local package");
                     let path = tokio::fs::canonicalize(path).await?;
                     Dependency::Local(path)
                 }
-                (None, Some(version)) => Dependency::Package(RegistryPackage {
+                // Handle default-registry packages
+                (None, Some(version), None) => Dependency::Package(RegistryPackage {
                     name: Some(pkg.clone()),
                     version: version.to_owned(),
                     registry: None,
                 }),
-                (None, None) => {
-                    tracing::warn!("Found override without version or path, ignoring");
+                // Skip malformed overrides
+                _ => {
+                    tracing::warn!(
+                        "Found malformed override for [{pkg}] without version, path, or registry, ignoring"
+                    );
                     continue;
                 }
             };
@@ -202,7 +254,9 @@ pub async fn resolve_dependencies(
                 .context("Unable to add dependency")?;
         }
     }
+
     let (_name, packages) = get_packages(path)?;
+
     resolver.add_packages(packages).await?;
     resolver.resolve().await
 }

@@ -45,6 +45,7 @@ use publisher::PackagePublisher;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::RwLock;
 use tokio_util::io::SyncIoBridge;
+use wasm_pkg_common::config::RegistryConfig;
 pub use wasm_pkg_common::{
     config::{Config, CustomConfig, RegistryMapping},
     digest::ContentDigest,
@@ -291,6 +292,44 @@ impl Client {
                 .insert(registry.clone(), Arc::new(source));
         }
         Ok(self.sources.read().await.get(&registry).unwrap().clone())
+    }
+
+    /// Ensure that a given registry mapping override is usable by the client
+    pub async fn ensure_registry_mapping_override(
+        &self,
+        mapping: &RegistryMapping,
+    ) -> Result<(), Error> {
+        let registry = match mapping {
+            RegistryMapping::Registry(registry) => registry,
+            RegistryMapping::Custom(custom_config) => &custom_config.registry,
+        };
+        // If the named registry is already present, skip
+        {
+            if self.sources.read().await.contains_key(registry) {
+                return Ok(());
+            }
+        }
+
+        // Build the source via (OCI only)
+        let registry_meta = match mapping {
+            RegistryMapping::Registry(_) => Default::default(),
+            RegistryMapping::Custom(c) => c.metadata.clone(),
+        };
+        let mut registry_config = RegistryConfig::default();
+        registry_config.set_default_backend(Some("oci".into()));
+        let source: InnerClient = Box::new(OciBackend::new(
+            &registry,
+            &registry_config,
+            &registry_meta,
+        )?);
+
+        // Add the source dynamically
+        self.sources
+            .write()
+            .await
+            .insert(registry.clone(), Arc::new(source));
+
+        Ok(())
     }
 }
 

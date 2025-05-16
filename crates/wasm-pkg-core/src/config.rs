@@ -71,10 +71,15 @@ pub struct Override {
     /// path. If this is not set, the package will be loaded from the registry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
+
     /// Overrides the version of a package specified in a world file. This is for advanced use only
     /// and may break things.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<VersionReq>,
+
+    /// Overrides that point to a remote registry
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry: Option<RegistryMapping>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
