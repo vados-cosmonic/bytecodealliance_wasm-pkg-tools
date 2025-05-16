@@ -23,7 +23,8 @@ pub struct Config {
     pub overrides: Option<HashMap<String, Override>>,
 
     /// Overrides for namespace registries
-    pub namespace_registries: BTreeMap<Label, RegistryMapping>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_registry_overrides: Option<BTreeMap<Label, RegistryMapping>>,
 
     /// Additional metadata about the package. This will override any metadata already set by other
     /// tools.
