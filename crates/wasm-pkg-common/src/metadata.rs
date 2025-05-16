@@ -12,7 +12,7 @@ pub const REGISTRY_METADATA_PATH: &str = "/.well-known/wasm-pkg/registry.json";
 
 type JsonObject = serde_json::Map<String, serde_json::Value>;
 
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryMetadata {
     /// The registry's preferred protocol.

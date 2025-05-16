@@ -34,7 +34,7 @@ pub struct Config {
 }
 
 /// Possible options for namespace configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum RegistryMapping {
     /// Use the given registry address (this will fetch the well-known registry metadata from the given hostname).
@@ -44,7 +44,7 @@ pub enum RegistryMapping {
 }
 
 /// Custom registry configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CustomConfig {
     /// A valid name for the registry. This still must be a valid [`Registry`] in that it should
     /// look like a valid hostname. When doing custom configuration however, this is just used as a

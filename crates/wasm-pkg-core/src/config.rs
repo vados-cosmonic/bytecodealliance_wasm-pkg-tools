@@ -1,14 +1,14 @@
 //! Type definitions and functions for working with `wkg.toml` files.
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+use wasm_pkg_client::RegistryMapping;
+use wasm_pkg_common::label::Label;
 
 /// The default name of the configuration file.
 pub const CONFIG_FILE_NAME: &str = "wkg.toml";
@@ -21,6 +21,10 @@ pub struct Config {
     /// Overrides for various packages
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overrides: Option<HashMap<String, Override>>,
+
+    /// Overrides for namespace registries
+    pub namespace_registries: BTreeMap<Label, RegistryMapping>,
+
     /// Additional metadata about the package. This will override any metadata already set by other
     /// tools.
     #[serde(default, skip_serializing_if = "Option::is_none")]
